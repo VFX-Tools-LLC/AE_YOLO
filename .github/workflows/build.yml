@@ -16,7 +16,7 @@ jobs:
   # Windows x64 (self-hosted, Visual Studio 2022)
   # ===========================================================================
   build-windows:
-    runs-on: [self-hosted, windows]
+    runs-on: [self-hosted, Windows, X64]
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +42,7 @@ jobs:
         shell: pwsh
         run: |
           cmake -B build -G "Visual Studio 17 2022" -A x64 `
-            -DAESDK_ROOT="D:/Work/Coding/AE_DOCS/AfterEffectsSDK/Examples"
+            -DAESDK_ROOT="D:/Work/Coding/AE_webgpu/AfterEffectsSDK/Examples"
 
       - name: Build
         shell: pwsh
@@ -60,7 +60,7 @@ jobs:
   # macOS Universal (self-hosted, Intel + Apple Silicon)
   # ===========================================================================
   build-macos:
-    runs-on: [self-hosted, macos]
+    runs-on: [self-hosted, macOS, ARM64]
     steps:
       - uses: actions/checkout@v4
 
