@@ -9,6 +9,15 @@
 static void DebugLog(const std::string& msg) {
     OutputDebugStringA(("[AE_YOLO] " + msg + "\n").c_str());
 }
+#elif defined(__APPLE__)
+#include <dlfcn.h>
+#include <libgen.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <os/log.h>
+static void DebugLog(const std::string& msg) {
+    os_log(OS_LOG_DEFAULT, "[AE_YOLO] %{public}s", msg.c_str());
+}
 #else
 #include <dlfcn.h>
 #include <libgen.h>
@@ -387,7 +396,7 @@ static PF_Err UserChangedParam(PF_InData* in_data, PF_OutData* out_data,
     if (which_hit->param_index == PARAM_LOAD_MODEL_BUTTON) {
         DebugLog("UserChangedParam: Load Model button clicked");
 
-        std::wstring selected;
+        std::string selected;
         if (!ShowOnnxFileDialog(selected)) {
             DebugLog("UserChangedParam: file dialog cancelled");
             return PF_Err_NONE;
@@ -398,11 +407,9 @@ static PF_Err UserChangedParam(PF_InData* in_data, PF_OutData* out_data,
         auto* seq = reinterpret_cast<UnflatSeqData*>(
             PF_LOCK_HANDLE(in_data->sequence_data));
 
-        int utf8len = WideCharToMultiByte(CP_UTF8, 0, selected.c_str(), -1,
-                                           NULL, 0, NULL, NULL);
-        if (utf8len > 0 && utf8len < MAX_MODEL_PATH) {
-            WideCharToMultiByte(CP_UTF8, 0, selected.c_str(), -1,
-                                seq->model_path, MAX_MODEL_PATH, NULL, NULL);
+        if (!selected.empty() && selected.size() < MAX_MODEL_PATH) {
+            strncpy(seq->model_path, selected.c_str(), MAX_MODEL_PATH - 1);
+            seq->model_path[MAX_MODEL_PATH - 1] = '\0';
             seq->has_model = TRUE;
             seq->model_input_size = 0;
             DebugLog("UserChangedParam: model path = " + std::string(seq->model_path));

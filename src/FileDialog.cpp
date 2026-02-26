@@ -5,11 +5,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shobjidl.h>
-#endif
 
-bool ShowOnnxFileDialog(std::wstring& out_path) {
-#ifdef _WIN32
-    out_path.clear();
+bool ShowOnnxFileDialog(std::string& out_path_utf8) {
+    out_path_utf8.clear();
 
     HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     bool com_inited = SUCCEEDED(hr) || hr == S_FALSE;
@@ -40,7 +38,13 @@ bool ShowOnnxFileDialog(std::wstring& out_path) {
             PWSTR pszPath = nullptr;
             hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszPath);
             if (SUCCEEDED(hr) && pszPath) {
-                out_path = pszPath;
+                int utf8len = WideCharToMultiByte(CP_UTF8, 0, pszPath, -1,
+                                                   NULL, 0, NULL, NULL);
+                if (utf8len > 0) {
+                    out_path_utf8.resize(utf8len - 1);
+                    WideCharToMultiByte(CP_UTF8, 0, pszPath, -1,
+                                        &out_path_utf8[0], utf8len, NULL, NULL);
+                }
                 CoTaskMemFree(pszPath);
             }
             pItem->Release();
@@ -49,8 +53,7 @@ bool ShowOnnxFileDialog(std::wstring& out_path) {
 
     pFileOpen->Release();
     if (com_inited) CoUninitialize();
-    return !out_path.empty();
-#else
-    return false;
-#endif
+    return !out_path_utf8.empty();
 }
+
+#endif // _WIN32

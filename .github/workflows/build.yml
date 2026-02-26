@@ -1,0 +1,96 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # ONNX Runtime version to download (gitignored, so CI fetches it)
+  ORT_VERSION: "1.20.1"
+
+jobs:
+  # ===========================================================================
+  # Windows x64 (self-hosted, Visual Studio 2022)
+  # ===========================================================================
+  build-windows:
+    runs-on: [self-hosted, windows]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download ONNX Runtime (DirectML)
+        shell: pwsh
+        run: |
+          if (Test-Path onnxruntime/onnxruntime-directml/include/onnxruntime_cxx_api.h) {
+            Write-Host "ONNX Runtime already present, skipping download"
+            return
+          }
+          $url = "https://github.com/microsoft/onnxruntime/releases/download/v${{ env.ORT_VERSION }}/Microsoft.ML.OnnxRuntime.DirectML.${{ env.ORT_VERSION }}.zip"
+          Invoke-WebRequest -Uri $url -OutFile ort.zip
+          Expand-Archive -Path ort.zip -DestinationPath ort_extract
+          New-Item -ItemType Directory -Force -Path onnxruntime/onnxruntime-directml/include
+          New-Item -ItemType Directory -Force -Path onnxruntime/onnxruntime-directml/lib
+          Copy-Item ort_extract/build/native/include/* onnxruntime/onnxruntime-directml/include/
+          Copy-Item ort_extract/runtimes/win-x64/native/onnxruntime.dll onnxruntime/onnxruntime-directml/lib/
+          Get-ChildItem -Recurse ort_extract -Filter onnxruntime.lib |
+            Select-Object -First 1 |
+            Copy-Item -Destination onnxruntime/onnxruntime-directml/lib/
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DAESDK_ROOT="D:/Work/Coding/AE_DOCS/AfterEffectsSDK/Examples"
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AE_YOLO-Windows-x64
+          path: |
+            build/Release/AE_YOLO.aex
+            build/Release/onnxruntime.dll
+
+  # ===========================================================================
+  # macOS Universal (self-hosted, Intel + Apple Silicon)
+  # ===========================================================================
+  build-macos:
+    runs-on: [self-hosted, macos]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download ONNX Runtime (macOS)
+        run: |
+          if [ -f onnxruntime/onnxruntime-osx/include/onnxruntime_cxx_api.h ]; then
+            echo "ONNX Runtime already present, skipping download"
+            exit 0
+          fi
+          curl -L -o ort.tgz \
+            "https://github.com/microsoft/onnxruntime/releases/download/v${{ env.ORT_VERSION }}/onnxruntime-osx-universal2-${{ env.ORT_VERSION }}.tgz"
+          tar xzf ort.tgz
+          mkdir -p onnxruntime/onnxruntime-osx/include
+          mkdir -p onnxruntime/onnxruntime-osx/lib
+          cp onnxruntime-osx-universal2-${{ env.ORT_VERSION }}/include/* onnxruntime/onnxruntime-osx/include/
+          cp onnxruntime-osx-universal2-${{ env.ORT_VERSION }}/lib/libonnxruntime*.dylib onnxruntime/onnxruntime-osx/lib/
+          rm -rf ort.tgz onnxruntime-osx-universal2-${{ env.ORT_VERSION }}
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" \
+            -DAESDK_ROOT="/Users/eric/Documents/ae25.6_61.64bit.AfterEffectsSDK/Examples"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AE_YOLO-macOS-Universal
+          path: build/Release/AE_YOLO.plugin

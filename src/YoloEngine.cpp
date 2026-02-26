@@ -17,9 +17,22 @@
 #pragma comment(lib, "shlwapi.lib")
 #endif
 
-// Forward-declare DirectML provider
+#ifdef __APPLE__
+#include <dlfcn.h>
+#include <mach-o/dyld.h>
+#include <libgen.h>
+#endif
+
+// Forward-declare execution providers
+#ifdef _WIN32
 extern "C" OrtStatusPtr ORT_API_CALL OrtSessionOptionsAppendExecutionProvider_DML(
     _In_ OrtSessionOptions* options, int device_id);
+#endif
+
+#ifdef __APPLE__
+extern "C" OrtStatusPtr OrtSessionOptionsAppendExecutionProvider_CoreML(
+    OrtSessionOptions* options, uint32_t coreml_flags);
+#endif
 
 // ============================================================================
 // Globals
@@ -51,12 +64,17 @@ static std::mutex& GetMutex() {
 static void DebugLog(const std::string& msg) {
     OutputDebugStringA(("[AE_YOLO] " + msg + "\n").c_str());
 }
+#elif defined(__APPLE__)
+#include <os/log.h>
+static void DebugLog(const std::string& msg) {
+    os_log(OS_LOG_DEFAULT, "[AE_YOLO] %{public}s", msg.c_str());
+}
 #else
 static void DebugLog(const std::string&) {}
 #endif
 
 // ============================================================================
-// DLL path helpers
+// DLL/dylib path helpers
 // ============================================================================
 #ifdef _WIN32
 static std::wstring GetPluginDirectory() {
@@ -173,6 +191,8 @@ void YoloEngine::EnsureSession(const char* model_path_utf8, bool use_gpu) {
 
         bool gpu_ok = false;
         if (use_gpu) {
+#ifdef _WIN32
+            // Windows: DirectML GPU acceleration
             try {
                 g_options->DisableMemPattern();
                 g_options->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
@@ -190,6 +210,23 @@ void YoloEngine::EnsureSession(const char* model_path_utf8, bool use_gpu) {
             } catch (const Ort::Exception& e) {
                 DebugLog(std::string("DirectML exception: ") + e.what());
             }
+#elif defined(__APPLE__)
+            // macOS: CoreML GPU/ANE acceleration
+            try {
+                OrtStatus* cml_status = OrtSessionOptionsAppendExecutionProvider_CoreML(
+                    *g_options, 0);
+                if (cml_status) {
+                    const char* err = Ort::Global<void>::api_->GetErrorMessage(cml_status);
+                    DebugLog(std::string("CoreML failed: ") + (err ? err : "unknown"));
+                    Ort::Global<void>::api_->ReleaseStatus(cml_status);
+                } else {
+                    gpu_ok = true;
+                    DebugLog("EnsureSession: CoreML execution provider added");
+                }
+            } catch (const Ort::Exception& e) {
+                DebugLog(std::string("CoreML exception: ") + e.what());
+            }
+#endif
         }
 
         if (!gpu_ok) {
@@ -199,11 +236,15 @@ void YoloEngine::EnsureSession(const char* model_path_utf8, bool use_gpu) {
             DebugLog("EnsureSession: using CPU execution provider");
         }
 
+        // Create session — Windows uses wide path, macOS/Linux use UTF-8
+#ifdef _WIN32
         int wlen = MultiByteToWideChar(CP_UTF8, 0, model_path_utf8, -1, NULL, 0);
         std::wstring wide_path(static_cast<size_t>(wlen), L'\0');
         MultiByteToWideChar(CP_UTF8, 0, model_path_utf8, -1, &wide_path[0], wlen);
-
         g_session = std::make_unique<Ort::Session>(*g_env, wide_path.c_str(), *g_options);
+#else
+        g_session = std::make_unique<Ort::Session>(*g_env, model_path_utf8, *g_options);
+#endif
 
         // Auto-detect input size from model shape [N, 3, H, W]
         Ort::TypeInfo input_info = g_session->GetInputTypeInfo(0);
@@ -265,8 +306,8 @@ bool YoloEngine::RunInference(const float* input_chw,
         size_t tensor_size = static_cast<size_t>(3) * g_input_size * g_input_size;
         std::vector<int64_t> input_shape = {1, 3, g_input_size, g_input_size};
 
-        // Copy input to a dedicated buffer so DirectML sees a fresh allocation
-        // each call and doesn't serve a stale GPU-side cache of the previous frame.
+        // Copy input to a dedicated buffer so DirectML/CoreML sees a fresh
+        // allocation each call and doesn't serve a stale GPU-side cache.
         g_input_buffer.assign(input_chw, input_chw + tensor_size);
 
         Ort::Value input_tensor = Ort::Value::CreateTensor<float>(

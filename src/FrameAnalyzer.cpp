@@ -15,6 +15,11 @@
 static void DebugLog(const std::string& msg) {
     OutputDebugStringA(("[AE_YOLO] " + msg + "\n").c_str());
 }
+#elif defined(__APPLE__)
+#include <os/log.h>
+static void DebugLog(const std::string& msg) {
+    os_log(OS_LOG_DEFAULT, "[AE_YOLO] %{public}s", msg.c_str());
+}
 #else
 static void DebugLog(const std::string&) {}
 #endif
@@ -195,12 +200,14 @@ PF_Err AnalyzeAndWriteKeyframes(
     PF_AppProgressDialogP prog_dlg = NULL;
     bool have_progress_dialog = false;
     try {
-        const wchar_t* title = L"YOLO Pose Analysis";
-        const wchar_t* cancel = L"Cancel";
+        // Use A_UTF16Char arrays directly — wchar_t is 32-bit on macOS,
+        // so reinterpret_cast from wchar_t* is only safe on Windows.
+        static const A_UTF16Char title[] = {
+            'Y','O','L','O',' ','P','o','s','e',' ',
+            'A','n','a','l','y','s','i','s', 0 };
+        static const A_UTF16Char cancel[] = { 'C','a','n','c','e','l', 0 };
         PF_Err prog_err = suites.AppSuite6()->PF_CreateNewAppProgressDialog(
-            reinterpret_cast<const A_UTF16Char*>(title),
-            reinterpret_cast<const A_UTF16Char*>(cancel),
-            FALSE, &prog_dlg);
+            title, cancel, FALSE, &prog_dlg);
         if (!prog_err && prog_dlg) {
             have_progress_dialog = true;
             DebugLog("Progress dialog created OK");
@@ -466,12 +473,17 @@ PF_Err AnalyzeAndWriteKeyframes(
             // Set smooth() expression — references the plugin's own slider so
             // the user can tweak smoothing interactively without re-analyzing.
             {
-                wchar_t expr[256];
-                swprintf(expr, 256,
-                    L"smooth(effect(\"YOLO Pose\")(\"Smooth Window\") / thisComp.frameRate, effect(\"YOLO Pose\")(\"Smooth Samples\"))");
+                // Build expression as A_UTF16Char for cross-platform safety
+                // (wchar_t is 32-bit on macOS, A_UTF16Char is always 16-bit).
+                const char* expr_utf8 =
+                    "smooth(effect(\"YOLO Pose\")(\"Smooth Window\") / thisComp.frameRate, "
+                    "effect(\"YOLO Pose\")(\"Smooth Samples\"))";
+                std::vector<A_UTF16Char> expr16;
+                for (const char* p = expr_utf8; *p; ++p)
+                    expr16.push_back(static_cast<A_UTF16Char>(*p));
+                expr16.push_back(0);
                 PF_Err expr_err = suites.StreamSuite6()->AEGP_SetExpression(
-                    g_aegp_plugin_id, streamH,
-                    reinterpret_cast<const A_UTF16Char*>(expr));
+                    g_aegp_plugin_id, streamH, expr16.data());
                 if (!expr_err) {
                     suites.StreamSuite6()->AEGP_SetExpressionState(
                         g_aegp_plugin_id, streamH, TRUE);

@@ -8,6 +8,11 @@
 static void DebugLog(const std::string& msg) {
     OutputDebugStringA(("[AE_YOLO] " + msg + "\n").c_str());
 }
+#elif defined(__APPLE__)
+#include <os/log.h>
+static void DebugLog(const std::string& msg) {
+    os_log(OS_LOG_DEFAULT, "[AE_YOLO] %{public}s", msg.c_str());
+}
 #else
 static void DebugLog(const std::string&) {}
 #endif

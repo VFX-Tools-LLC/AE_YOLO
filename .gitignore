@@ -1,3 +1,30 @@
 build/
 
+# ONNX models (large binaries — users download separately)
+*.onnx
+*.pt
+
+# ONNX Runtime libraries (users download separately)
+onnxruntime/
+
+# Internal planning docs
 NNFlowVector_AE_Plan.md
+
+# IDE / editor
+.vs/
+.vscode/
+*.user
+*.suo
+*.ncb
+*.sdf
+*.opensdf
+.idea/
+*.swp
+*~
+
+# macOS
+.DS_Store
+*.dSYM/
+
+# Windows
+Thumbs.db
