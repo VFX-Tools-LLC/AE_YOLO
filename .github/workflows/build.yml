@@ -93,4 +93,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AE_YOLO-macOS-Universal
-          path: build/Release/AE_YOLO.plugin
+          path: build/AE_YOLO.plugin
