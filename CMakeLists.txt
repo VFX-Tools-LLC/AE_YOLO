@@ -211,6 +211,7 @@ if(APPLE)
         "-framework Cocoa"
         "-framework CoreML"
         "-framework Foundation"
+        "-framework UniformTypeIdentifiers"
     )
 
     # Set rpath so the plugin can find libonnxruntime.dylib next to it

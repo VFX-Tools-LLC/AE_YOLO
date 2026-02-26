@@ -2,6 +2,7 @@
 
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 bool ShowOnnxFileDialog(std::string& out_path_utf8) {
     out_path_utf8.clear();
