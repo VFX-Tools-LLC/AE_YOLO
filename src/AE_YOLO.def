@@ -1,0 +1,4 @@
+LIBRARY AE_YOLO
+EXPORTS
+    EffectMain
+    PluginDataEntryFunction2
