@@ -228,10 +228,7 @@ static PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data,
 
     // Param 10: Group start - Keypoints
     AEFX_CLR_STRUCT(def);
-    def.param_type = PF_Param_GROUP_START;
-    PF_STRCPY(def.name, "Keypoints");
-    def.flags |= PF_ParamFlag_START_COLLAPSED;
-    ERR(PF_ADD_PARAM(in_data, -1, &def));
+    PF_ADD_TOPICX("Keypoints", PF_ParamFlag_START_COLLAPSED, GROUP_START_DISK_ID);
 
     // 17 keypoints × 2 (Point2D + Conf) = 34 params
     for (int k = 0; k < NUM_KEYPOINTS; k++) {
@@ -253,8 +250,7 @@ static PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data,
 
     // Group end
     AEFX_CLR_STRUCT(def);
-    def.param_type = PF_Param_GROUP_END;
-    ERR(PF_ADD_PARAM(in_data, -1, &def));
+    PF_END_TOPIC(GROUP_END_DISK_ID);
 
     out_data->num_params = PARAM_NUM_PARAMS;
 
