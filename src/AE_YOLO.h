@@ -56,27 +56,25 @@ static const char* const kKeypointNames[NUM_KEYPOINTS] = {
 };
 
 // ============================================================================
-// Parameter IDs — 46 total
+// Parameter IDs — 44 total
 // ============================================================================
 enum ParamID {
     PARAM_INPUT = 0,
-    PARAM_LOAD_MODEL_BUTTON,    // 1
-    PARAM_ANALYZE_BUTTON,       // 2
-    PARAM_MODEL_QUALITY,        // 3 — popup: Best Quality (x) / Faster (m)
-    PARAM_CONFIDENCE,           // 4
-    PARAM_USE_GPU,              // 5
-    PARAM_SMOOTH_WINDOW,        // 6 — SavGol window size (odd, 1=off)
-    PARAM_SMOOTH_ORDER,         // 7 — sample count for smooth() (1–25, odd preferred)
-    PARAM_PREVIEW_LINES,        // 8 — checkbox: draw skeleton lines on preview
-    PARAM_SKIP_FRAMES,          // 9 — detection stride (1=every frame, N=every Nth)
-    PARAM_GROUP_START,          // 10
+    PARAM_ANALYZE_BUTTON,       // 1
+    PARAM_MODEL_QUALITY,        // 2 — popup: Best Quality (x) / Faster (m)
+    PARAM_CONFIDENCE,           // 3
+    PARAM_USE_GPU,              // 4
+    PARAM_SMOOTH_WINDOW,        // 5 — SavGol window size (odd, 1=off)
+    PARAM_SMOOTH_ORDER,         // 6 — SavGol polynomial order (1–5)
+    PARAM_SKIP_FRAMES,          // 7 — detection stride (1=every frame, N=every Nth)
+    PARAM_GROUP_START,          // 8
 
-    // 17 keypoints × 2 (Point, Conf) = 34 params, indices 11–44
-    PARAM_KP_FIRST = 11,
-    PARAM_KP_LAST  = 44,        // PARAM_KP_FIRST + NUM_KEYPOINTS * 2 - 1
+    // 17 keypoints × 2 (Point, Conf) = 34 params, indices 9–42
+    PARAM_KP_FIRST = 9,
+    PARAM_KP_LAST  = 42,        // PARAM_KP_FIRST + NUM_KEYPOINTS * 2 - 1
 
-    PARAM_GROUP_END,            // 45
-    PARAM_NUM_PARAMS            // 46
+    PARAM_GROUP_END,            // 43
+    PARAM_NUM_PARAMS            // 44
 };
 
 // Helper: get param index for keypoint k (0–16) position (Point2D)
@@ -90,7 +88,6 @@ inline PF_ParamIndex KP_CONF_PARAM(int k) {
 }
 
 // Disk IDs for params (must be stable across versions)
-#define LOAD_MODEL_DISK_ID      1
 #define ANALYZE_DISK_ID         2
 #define MODEL_QUALITY_DISK_ID   8
 #define CONFIDENCE_DISK_ID      3
@@ -98,7 +95,6 @@ inline PF_ParamIndex KP_CONF_PARAM(int k) {
 #define SMOOTH_WINDOW_DISK_ID   6
 #define SMOOTH_ORDER_DISK_ID    7
 #define GROUP_START_DISK_ID     5
-#define PREVIEW_LINES_DISK_ID   9
 #define SKIP_FRAMES_DISK_ID     10
 
 // Model quality popup values (1-indexed for AE popups)
@@ -125,32 +121,6 @@ struct UnflatSeqData {
     A_u_short   padding;
     char        model_path[MAX_MODEL_PATH];
     int         model_input_size;   // auto-detected, typically 640
-};
-
-// ============================================================================
-// COCO skeleton connections (19 bone pairs)
-// ============================================================================
-static const int kSkeletonPairs[][2] = {
-    {0, 1},  {0, 2},           // Nose → Eyes
-    {1, 2},                    // LEye ↔ REye
-    {1, 3},  {2, 4},           // Eyes → Ears
-    {3, 5},  {4, 6},           // Ears → Shoulders
-    {5, 6},                    // Shoulders
-    {5, 7},  {7, 9},           // Left arm
-    {6, 8},  {8, 10},          // Right arm
-    {5, 11}, {6, 12},          // Torso
-    {11, 12},                  // Hips
-    {11, 13}, {13, 15},        // Left leg
-    {12, 14}, {14, 16}         // Right leg
-};
-static const int kNumSkeletonPairs =
-    static_cast<int>(sizeof(kSkeletonPairs) / sizeof(kSkeletonPairs[0]));
-
-// ============================================================================
-// Pre-render data
-// ============================================================================
-struct PreRenderData {
-    char        model_path[MAX_MODEL_PATH];
 };
 
 // ============================================================================

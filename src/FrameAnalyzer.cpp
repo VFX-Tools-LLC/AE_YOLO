@@ -2,7 +2,7 @@
 #include "YoloEngine.h"
 #include "YoloPostprocess.h"
 #include "Letterbox.h"
-// SavGol smoothing is applied as an AE expression, not baked into keyframes.
+#include "SavGolSmooth.h"
 
 #include "AEGP_SuiteHandler.h"
 #include "AE_GeneralPlug.h"
@@ -395,13 +395,33 @@ PF_Err AnalyzeAndWriteKeyframes(
         return PF_Err_NONE;
     }
 
-    // Count valid detections (keyframes are written only for detected frames;
-    // AE interpolates between them, and the optional smooth() expression
-    // provides temporal smoothing non-destructively).
     int valid_count = 0;
     for (bool v : frame_valid) if (v) valid_count++;
     DebugLog("Detection complete: " + std::to_string(valid_count) +
              " valid frames out of " + std::to_string(num_frames));
+
+    // --- 7b. Apply Savitzky-Golay smoothing per keypoint track ---
+    if (smooth_window >= 3 && valid_count >= 3) {
+        DebugLog("Applying SavGol smoothing: window=" + std::to_string(smooth_window) +
+                 " order=" + std::to_string(smooth_order));
+        for (int k = 0; k < NUM_KEYPOINTS; k++) {
+            std::vector<float> x_track(num_frames), y_track(num_frames), conf_track(num_frames);
+            for (int f = 0; f < num_frames; f++) {
+                x_track[f] = all_results[f].x[k];
+                y_track[f] = all_results[f].y[k];
+                conf_track[f] = all_results[f].conf[k];
+            }
+            SavGol::SmoothKeypoints(x_track, y_track, conf_track, frame_valid,
+                                     smooth_window, smooth_order);
+            for (int f = 0; f < num_frames; f++) {
+                if (frame_valid[f]) {
+                    all_results[f].x[k] = x_track[f];
+                    all_results[f].y[k] = y_track[f];
+                }
+            }
+        }
+        DebugLog("SavGol smoothing applied to all keypoint tracks");
+    }
 
     // --- 8. Write keyframes (Point2D + Conf per keypoint) ---
     // Undo group ONLY wraps keyframe writing — NOT rendering
@@ -469,28 +489,6 @@ PF_Err AnalyzeAndWriteKeyframes(
 
             DebugLog("KP " + std::to_string(k) + " point: EndAddKeyframes (" + std::to_string(kf_count) + " keyframes)");
             suites.KeyframeSuite5()->AEGP_EndAddKeyframes(TRUE, akH);
-
-            // Set smooth() expression — references the plugin's own slider so
-            // the user can tweak smoothing interactively without re-analyzing.
-            {
-                // Build expression as A_UTF16Char for cross-platform safety
-                // (wchar_t is 32-bit on macOS, A_UTF16Char is always 16-bit).
-                const char* expr_utf8 =
-                    "smooth(effect(\"YOLO Pose\")(\"Smooth Window\") / thisComp.frameRate, "
-                    "effect(\"YOLO Pose\")(\"Smooth Samples\"))";
-                std::vector<A_UTF16Char> expr16;
-                for (const char* p = expr_utf8; *p; ++p)
-                    expr16.push_back(static_cast<A_UTF16Char>(*p));
-                expr16.push_back(0);
-                PF_Err expr_err = suites.StreamSuite6()->AEGP_SetExpression(
-                    g_aegp_plugin_id, streamH, expr16.data());
-                if (!expr_err) {
-                    suites.StreamSuite6()->AEGP_SetExpressionState(
-                        g_aegp_plugin_id, streamH, TRUE);
-                }
-                DebugLog("KP " + std::to_string(k) + " smooth expr (interactive) err=" +
-                         std::to_string(expr_err));
-            }
 
             suites.StreamSuite6()->AEGP_DisposeStream(streamH);
             DebugLog("KP " + std::to_string(k) + " point: Done");

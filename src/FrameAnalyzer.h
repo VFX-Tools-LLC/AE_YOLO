@@ -13,6 +13,6 @@ PF_Err AnalyzeAndWriteKeyframes(
     PF_InData* in_data,
     PF_OutData* out_data,
     float conf_threshold = 0.25f,
-    int smooth_window = 5,
-    int smooth_order = 2,
+    int smooth_window = 7,
+    int smooth_order = 3,
     int skip_frames = 1);

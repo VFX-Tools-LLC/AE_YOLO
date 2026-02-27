@@ -37,16 +37,9 @@ set(HEADERS
     src/YoloEngine.h
     src/YoloPostprocess.h
     src/FrameAnalyzer.h
-    src/FileDialog.h
     src/Letterbox.h
+    src/SavGolSmooth.h
 )
-
-# Platform-specific file dialog source
-if(WIN32)
-    list(APPEND SOURCES src/FileDialog.cpp)
-elseif(APPLE)
-    list(APPEND SOURCES src/FileDialog_mac.mm)
-endif()
 
 # === Plugin target ===
 add_library(AE_YOLO MODULE ${SOURCES} ${HEADERS})
@@ -97,9 +90,16 @@ if(WIN32)
 
     target_link_libraries(AE_YOLO PRIVATE
         "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib"
+        delayimp.lib
         ole32.lib
         shell32.lib
         shlwapi.lib
+    )
+
+    # Delay-load onnxruntime.dll so the plugin can set DLL search path
+    # (via PreloadDlls) before the library is actually resolved.
+    target_link_options(AE_YOLO PRIVATE
+        "/DELAYLOAD:onnxruntime.dll"
     )
 
     # === PiPL resource compilation ===
@@ -167,12 +167,6 @@ endif()
 # macOS
 # =============================================================================
 if(APPLE)
-    # Enable Objective-C++ for the macOS file dialog
-    enable_language(OBJCXX)
-    set_source_files_properties(src/FileDialog_mac.mm PROPERTIES
-        COMPILE_FLAGS "-x objective-c++ -fobjc-arc"
-    )
-
     target_include_directories(AE_YOLO PRIVATE
         ${AESDK_ROOT}/Headers/Mac
     )
@@ -211,7 +205,6 @@ if(APPLE)
         "-framework Cocoa"
         "-framework CoreML"
         "-framework Foundation"
-        "-framework UniformTypeIdentifiers"
     )
 
     # Set rpath so the plugin can find libonnxruntime.dylib next to it
